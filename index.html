@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFiDrop — File Sharing</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@400;500;600;700&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<span class="burst burst-1">✦</span>
+<span class="burst burst-2">✦</span>
+<div class="app">
+
+  <a class="logo" href="#">
+    <div class="lmark">
+      <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1.5" fill="white" stroke="none"/></svg>
+    </div>
+    <div class="ltxt">WiFi<em>Drop</em></div>
+  </a>
+
+  <div class="panel">
+    <div class="bnav">
+      <button class="bnt on" onclick="app.showTab('t')">Transfer</button>
+      <button class="bnt" onclick="app.showTab('h')">Riwayat</button>
+      <button class="bnt" onclick="app.showTab('i')">Info</button>
+    </div>
+
+    <!-- ═══ TRANSFER TAB ═══ -->
+    <div id="tt">
+
+      <!-- STEP 1: CHOOSE MODE -->
+      <div id="modeDiv">
+        <div class="card">
+          <div class="ctitle">Mulai Transfer</div>
+          <div class="rgrid">
+            <div class="rbtn" id="rHost" onclick="app.pickMode('host')">
+              <span class="ri">📡</span>
+              <div class="rl">Host</div>
+              <div class="rd">Buat kode ruangan</div>
+            </div>
+            <div class="rbtn" id="rJoin" onclick="app.pickMode('join')">
+              <span class="ri">🔗</span>
+              <div class="rl">Gabung</div>
+              <div class="rd">Masukkan kode</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2a: HOST — waiting -->
+      <div id="hostDiv" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div class="ctitle" style="margin:0">Kode Ruanganmu</div>
+            <button class="btn btn-g btn-sm" onclick="app.reset()">← Kembali</button>
+          </div>
+          <div class="codebox">
+            <div class="clabel">Bagikan ke teman</div>
+            <div class="cval" id="myCode">----</div>
+            <div class="rg" style="justify-content:center;margin-top:12px">
+              <button class="btn btn-g btn-sm" onclick="app.copyCode()">📋 Salin</button>
+              <button class="btn btn-g btn-sm" onclick="app.regenCode()">🔄 Kode baru</button>
+            </div>
+          </div>
+          <div class="qrwrap">
+            <div class="qrbox"><canvas id="qrCv" width="78" height="78"></canvas></div>
+            <div>
+              <p style="font-weight:600;font-size:14px;margin-bottom:4px">Scan QR code</p>
+              <p class="small">Teman scan QR ini atau ketik kode secara manual</p>
+            </div>
+          </div>
+        </div>
+        <div id="waitingConn">
+          <div class="conn-anim">
+            <div class="ring">
+              <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1.5" fill="var(--acc)" stroke="none"/></svg>
+            </div>
+            <p style="font-weight:500;margin-bottom:4px">Menunggu teman masuk...</p>
+            <p class="small">Teman cukup buka app ini dan masukkan kode <strong id="codeHint" style="color:var(--acc);font-family:var(--mono)"></strong></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2b: JOIN -->
+      <div id="joinDiv" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div class="ctitle" style="margin:0">Masukkan Kode</div>
+            <button class="btn btn-g btn-sm" onclick="app.reset()">← Kembali</button>
+          </div>
+          <p class="small" style="margin-bottom:12px">Minta kode 4 karakter dari teman yang host</p>
+          <button id="scanBtn" class="btn btn-p btn-full" onclick="app.startScan()" style="margin-bottom:14px;padding:14px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 17h7M17.5 14v7"/></svg>
+            📷 Scan QR dari Host
+          </button>
+          <div class="divider" style="margin:10px 0"><span class="small" style="display:block;text-align:center;margin:-6px 0;background:var(--s1);padding:0 10px;position:relative">atau ketik manual</span></div>
+          <input class="inp" id="joinInp" maxlength="4" placeholder="A7F2" autocomplete="off" spellcheck="false" oninput="app.autoJoin(this.value)">
+          <div id="joinStatus" class="mt2"></div>
+        </div>
+      </div>
+
+      <!-- CONNECTED: shared by both host and join -->
+      <div id="connectedDiv" class="hidden">
+        <div class="sbar ok"><div class="dot pulse"></div> Terhubung! Kirim atau terima file dan teks.</div>
+
+        <div class="card">
+          <div class="ctitle">Terhubung dengan</div>
+          <div class="peer-row">
+            <div class="pav" id="peerAv" style="background:rgba(61,214,140,.15);color:var(--acc3)">?</div>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:600" id="peerName">Teman</div>
+              <div class="small" id="peerStatus">Siap transfer</div>
+            </div>
+            <button id="notifBtn" class="btn btn-g btn-sm" onclick="app.toggleNotif()" title="Notifikasi" style="padding:6px 10px">
+              <svg id="bellOn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a-2-2 0 0 1-3.46 0"/></svg>
+              <svg id="bellOff" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a-2-2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+            <div class="dot" id="peerDot" style="background:var(--acc3)"></div>
+          </div>
+        </div>
+
+        <div class="conn-cols">
+          <!-- ── KIRIM (left) ── -->
+          <div class="conn-send">
+            <div class="card">
+              <div class="ctitle">Kirim File</div>
+              <div class="dz" id="dz" onclick="document.getElementById('fi').click()" ondragover="app.dzOver(event)" ondragleave="app.dzLeave(event)" ondrop="app.dzDrop(event)">
+                <div class="dz-line"></div>
+                <div class="dz-ic">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                </div>
+                <p>Seret file ke sini</p>
+                <small>atau klik untuk memilih</small>
+              </div>
+              <input type="file" id="fi" multiple style="display:none" onchange="app.addFiles(this.files)">
+              <div class="flist" id="flist"></div>
+              <div id="sendbar" class="hidden" style="margin-top:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button class="btn btn-p" id="sendBtn" onclick="app.sendAll()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Kirim Sekarang
+                </button>
+                <button class="btn btn-d btn-sm" onclick="app.clearFiles()">Hapus semua</button>
+                <span class="small" id="totalTxt"></span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="row" style="margin-bottom:0">
+                <div class="ctitle" style="margin:0">Kirim Pesan</div>
+                <button class="btn btn-g btn-sm" onclick="app.addTextItem()">+ Tambah</button>
+              </div>
+              <p class="small" style="margin-bottom:12px;margin-top:4px">Kirim teks panjang atau beberapa pesan sekaligus</p>
+              <div id="textList" style="display:flex;flex-direction:column;gap:10px"></div>
+              <div id="textbar" class="hidden" style="margin-top:12px">
+                <button class="btn btn-p btn-sm" onclick="app.sendTexts()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Kirim Pesan
+                </button>
+                <button class="btn btn-d btn-sm" onclick="app.clearTexts()">Hapus semua</button>
+                <span class="small" id="textCount"></span>
+              </div>
+            </div>
+          </div><!-- end .conn-send -->
+
+          <!-- ── TERIMA (right) ── -->
+          <div class="conn-recv">
+            <div class="card" id="incomingCard">
+              <div class="ctitle">File Masuk 📥</div>
+              <div class="flist" id="incomingList"></div>
+            </div>
+
+            <div class="card" id="incomingTextCard">
+              <div class="ctitle">Pesan Masuk 💬</div>
+              <div id="incomingTextList"></div>
+            </div>
+          </div><!-- end .conn-recv -->
+        </div><!-- end .conn-cols -->
+      </div>
+
+    </div><!-- end #tt -->
+
+    <!-- HISTORY TAB -->
+    <div id="ht" class="hidden">
+      <div class="card">
+        <div class="row">
+          <div class="ctitle" style="margin:0">Riwayat Transfer</div>
+          <button class="btn btn-d btn-sm" onclick="app.clrHist()">Hapus</button>
+        </div>
+        <div class="hist-grid" id="histList"></div>
+      </div>
+    </div>
+
+    <!-- INFO TAB -->
+    <div id="it" class="hidden">
+      <div class="card">
+        <div class="ctitle">Cara Pakai</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:12px">
+            <div style="width:26px;height:26px;background:rgba(124,111,252,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0">1</div>
+            <div><p style="font-weight:600;margin-bottom:2px">Buka di kedua perangkat</p><p class="small">Buka file HTML ini di browser (Chrome/Edge) di kedua perangkat.</p></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:26px;height:26px;background:rgba(124,111,252,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0">2</div>
+            <div><p style="font-weight:600;margin-bottom:2px">Host buat kode</p><p class="small">Yang pertama pilih "Host" → dapat kode 4 karakter → bagikan ke teman.</p></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:26px;height:26px;background:rgba(124,111,252,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0">3</div>
+            <div><p style="font-weight:600;margin-bottom:2px">Teman gabung</p><p class="small">Teman pilih "Gabung" → ketik kode 4 karakter → otomatis terhubung!</p></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:26px;height:26px;background:rgba(124,111,252,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0">4</div>
+            <div><p style="font-weight:600;margin-bottom:2px">Transfer dua arah!</p><p class="small">Keduanya bisa kirim & terima file dan teks secara bersamaan — tanpa server penyimpanan.</p></div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="sbar ok" style="margin:0"><div class="dot"></div> Data tidak disimpan di server manapun. Murni P2P via WebRTC.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Teknologi</div>
+        <p class="small" style="line-height:1.8">Menggunakan <strong style="color:var(--text)">WebRTC DataChannel</strong> untuk transfer P2P langsung antar browser. Sinyal koneksi difasilitasi oleh <strong style="color:var(--text)">PeerJS</strong> (server gratis) — hanya untuk bertukar alamat koneksi, bukan data file. Setelah terhubung, semua data mengalir langsung antar perangkat.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- QR SCAN OVERLAY -->
+<div id="scanOverlay" class="hidden">
+  <div class="scan-inner">
+    <div class="scan-header">
+      <span>📷 Arahkan kamera ke QR Code host</span>
+      <button class="btn btn-d btn-sm" onclick="app.stopScan()">✕ Tutup</button>
+    </div>
+    <div id="scanRegion" style="width:240px;height:240px;margin:0 auto"></div>
+    <p id="scanStatus" class="small" style="text-align:center;margin-top:12px;color:var(--text2)">Mencari QR code...</p>
+  </div>
+</div>
+
+<script defer src="app.js"></script>
+</body>
+</html>
